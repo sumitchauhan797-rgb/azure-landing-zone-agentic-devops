@@ -1,0 +1,194 @@
+name: Terraform PreProd Deployment
+
+on:
+  push:
+    branches:
+      - main
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: terraform-preprod
+  cancel-in-progress: false
+
+jobs:
+
+  terraform-plan:
+
+    name: Terraform Plan
+
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: environments/preprod
+
+    steps:
+
+      # --------------------------------
+      # 1. Checkout
+      # --------------------------------
+
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+
+      # --------------------------------
+      # 2. Setup Terraform
+      # --------------------------------
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+
+      # --------------------------------
+      # 3. Azure OIDC Login
+      # --------------------------------
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.ARM_CLIENT_ID }}
+          tenant-id: ${{ secrets.ARM_TENANT_ID }}
+          subscription-id: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+
+
+      # --------------------------------
+      # 4. Verify Azure
+      # --------------------------------
+
+      - name: Verify Azure Login
+        run: |
+          az account show
+          az account list --output table
+
+
+      # --------------------------------
+      # 5. Terraform Init
+      # --------------------------------
+
+      - name: Terraform Init
+        run: terraform init
+
+
+      # --------------------------------
+      # 6. Terraform Format
+      # --------------------------------
+
+      - name: Terraform Format Check
+        run: terraform fmt -check -recursive
+
+
+      # --------------------------------
+      # 7. Terraform Validate
+      # --------------------------------
+
+      - name: Terraform Validate
+        run: terraform validate
+
+
+      # --------------------------------
+      # 8. Terraform Plan
+      # --------------------------------
+
+      - name: Terraform Plan
+        run: terraform plan -out=tfplan
+
+
+      # --------------------------------
+      # 9. Upload Plan
+      # --------------------------------
+
+      - name: Upload Terraform Plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-plan
+          path: environments/preprod/tfplan
+
+
+  # ==================================================
+  # APPROVAL + APPLY
+  # ==================================================
+
+  terraform-apply:
+
+    name: Terraform Apply
+
+    needs: terraform-plan
+
+    runs-on: ubuntu-latest
+
+    environment:
+      name: PreProd
+
+    defaults:
+      run:
+        working-directory: environments/preprod
+
+    steps:
+
+      # --------------------------------
+      # 1. Checkout
+      # --------------------------------
+
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+
+      # --------------------------------
+      # 2. Setup Terraform
+      # --------------------------------
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+
+      # --------------------------------
+      # 3. Azure OIDC Login
+      # --------------------------------
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.ARM_CLIENT_ID }}
+          tenant-id: ${{ secrets.ARM_TENANT_ID }}
+          subscription-id: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+
+
+      # --------------------------------
+      # 4. Verify Azure
+      # --------------------------------
+
+      - name: Verify Azure Login
+        run: az account show
+
+
+      # --------------------------------
+      # 5. Terraform Init
+      # --------------------------------
+
+      - name: Terraform Init
+        run: terraform init
+
+
+      # --------------------------------
+      # 6. Download Plan
+      # --------------------------------
+
+      - name: Download Terraform Plan
+        uses: actions/download-artifact@v4
+        with:
+          name: terraform-plan
+          path: environments/preprod
+
+
+      # --------------------------------
+      # 7. Terraform Apply
+      # --------------------------------
+
+      - name: Terraform Apply
+        run: terraform apply -auto-approve tfplan
