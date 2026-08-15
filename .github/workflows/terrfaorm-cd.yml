@@ -1,31 +1,28 @@
-name: Terraform PreProd Deployment
+name: Terraform Preprod Deployment
 
 on:
   push:
     branches:
       - main
 
-  workflow_dispatch:
-
 permissions:
   contents: read
-  id-token: write
-
-concurrency:
-  group: terraform-preprod
-  cancel-in-progress: false
 
 jobs:
 
-  terraform-plan:
-
-    name: Terraform Plan
+  terraform-cd:
 
     runs-on: ubuntu-latest
 
     defaults:
       run:
         working-directory: environments/preprod
+
+    env:
+      ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+      ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
 
     steps:
 
@@ -46,25 +43,30 @@ jobs:
 
 
       # --------------------------------
-      # 3. Azure OIDC Login
+      # 3. Azure Login
       # --------------------------------
 
       - name: Azure Login
-        uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.ARM_CLIENT_ID }}
-          tenant-id: ${{ secrets.ARM_TENANT_ID }}
-          subscription-id: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+        shell: bash
+        run: |
+          az login \
+            --service-principal \
+            --username "$ARM_CLIENT_ID" \
+            --password "$ARM_CLIENT_SECRET" \
+            --tenant "$ARM_TENANT_ID"
+
+          az account set \
+            --subscription "$ARM_SUBSCRIPTION_ID"
 
 
       # --------------------------------
-      # 4. Verify Azure
+      # 4. Verify Azure Login
       # --------------------------------
 
       - name: Verify Azure Login
+        shell: bash
         run: |
-          az account show
-          az account list --output table
+          az account show --output table
 
 
       # --------------------------------
@@ -79,7 +81,7 @@ jobs:
       # 6. Terraform Format
       # --------------------------------
 
-      - name: Terraform Format Check
+      - name: Terraform Format
         run: terraform fmt -check -recursive
 
 
@@ -100,94 +102,7 @@ jobs:
 
 
       # --------------------------------
-      # 9. Upload Plan
-      # --------------------------------
-
-      - name: Upload Terraform Plan
-        uses: actions/upload-artifact@v4
-        with:
-          name: terraform-plan
-          path: environments/preprod/tfplan
-
-
-  # ==================================================
-  # APPROVAL + APPLY
-  # ==================================================
-
-  terraform-apply:
-
-    name: Terraform Apply
-
-    needs: terraform-plan
-
-    runs-on: ubuntu-latest
-
-    environment:
-      name: PreProd
-
-    defaults:
-      run:
-        working-directory: environments/preprod
-
-    steps:
-
-      # --------------------------------
-      # 1. Checkout
-      # --------------------------------
-
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-
-      # --------------------------------
-      # 2. Setup Terraform
-      # --------------------------------
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-
-
-      # --------------------------------
-      # 3. Azure OIDC Login
-      # --------------------------------
-
-      - name: Azure Login
-        uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.ARM_CLIENT_ID }}
-          tenant-id: ${{ secrets.ARM_TENANT_ID }}
-          subscription-id: ${{ secrets.ARM_SUBSCRIPTION_ID }}
-
-
-      # --------------------------------
-      # 4. Verify Azure
-      # --------------------------------
-
-      - name: Verify Azure Login
-        run: az account show
-
-
-      # --------------------------------
-      # 5. Terraform Init
-      # --------------------------------
-
-      - name: Terraform Init
-        run: terraform init
-
-
-      # --------------------------------
-      # 6. Download Plan
-      # --------------------------------
-
-      - name: Download Terraform Plan
-        uses: actions/download-artifact@v4
-        with:
-          name: terraform-plan
-          path: environments/preprod
-
-
-      # --------------------------------
-      # 7. Terraform Apply
+      # 9. Terraform Apply
       # --------------------------------
 
       - name: Terraform Apply
