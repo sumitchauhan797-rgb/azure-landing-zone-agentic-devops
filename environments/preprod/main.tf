@@ -3,6 +3,7 @@ module "resource_group" {
   resource_groups = var.resource_groups
 }
 module "virtual_network" {
+  depends_on = [module.resource_group]
   source = "../../modules/networking/VNet"
   vnets  = var.vnets
 }
