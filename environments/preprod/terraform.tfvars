@@ -22,13 +22,13 @@ subnets = {
     name                 = "AzureFirewallSubnet"
     resource_group_name  = "rg-alz-preprod-network"
     virtual_network_name = "vnet-alz-preprod-hub"
-    address_prefixes     = ["10.20.1.0/16"]
+    address_prefixes     = ["10.20.1.0/24"]
   }
   subnet2 = {
     name                 = "workload-subnet"
     resource_group_name  = "rg-alz-preprod-network"
     virtual_network_name = "vnet-alz-preprod-hub"
-    address_prefixes     = ["10.20.2.0/16"]
+    address_prefixes     = ["10.20.2.0/24"]
   }
 }
 NSGs = {
