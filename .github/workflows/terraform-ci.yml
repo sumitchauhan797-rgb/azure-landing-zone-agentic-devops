@@ -1,0 +1,142 @@
+name: Terraform CI
+
+on:
+  pull_request:
+    branches:
+      - main
+
+  push:
+    branches:
+      - main
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  TF_WORKING_DIR: environments/preprod
+
+jobs:
+
+  # ============================================================
+  # 1. Security Scan
+  # ============================================================
+
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      # -------------------------------
+      # Gitleaks
+      # -------------------------------
+
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v3
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+      # -------------------------------
+      # TFLint Setup
+      # -------------------------------
+
+      - name: Setup TFLint
+        uses: terraform-linters/setup-tflint@v6
+        with:
+          tflint_version: latest
+          cache: true
+
+      - name: Initialize TFLint
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: tflint --init
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+      - name: Run TFLint
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: tflint -f compact
+
+
+  # ============================================================
+  # 2. Terraform Validation
+  # ============================================================
+
+  terraform-validation:
+    name: Terraform Validation
+    runs-on: ubuntu-latest
+
+    needs: security-scan
+
+    defaults:
+      run:
+        working-directory: ${{ env.TF_WORKING_DIR }}
+
+    steps:
+
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+
+      # -------------------------------
+      # Terraform Setup
+      # -------------------------------
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      # -------------------------------
+      # Azure Login
+      # -------------------------------
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: >-
+            {
+              "clientId": "${{ secrets.ARM_CLIENT_ID }}",
+              "clientSecret": "${{ secrets.ARM_CLIENT_SECRET }}",
+              "subscriptionId": "${{ secrets.ARM_SUBSCRIPTION_ID }}",
+              "tenantId": "${{ secrets.ARM_TENANT_ID }}"
+            }
+
+      # -------------------------------
+      # Verify Azure Login
+      # -------------------------------
+
+      - name: Verify Azure Login
+        run: az account show
+
+      # -------------------------------
+      # Terraform Init
+      # -------------------------------
+
+      - name: Terraform Init
+        run: terraform init
+
+      # -------------------------------
+      # Terraform Format
+      # -------------------------------
+
+      - name: Terraform Format Check
+        run: terraform fmt -check -recursive
+
+      # -------------------------------
+      # Terraform Validate
+      # -------------------------------
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      # -------------------------------
+      # Terraform Plan
+      # -------------------------------
+
+      - name: Terraform Plan
+        run: terraform plan -out=tfplan
