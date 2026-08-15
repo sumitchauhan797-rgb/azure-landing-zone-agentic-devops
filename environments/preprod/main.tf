@@ -12,7 +12,7 @@ module "subnet" {
   subnets    = var.subnets
 }
 module "network_security_group" {
-  depends_on = [module.resource_group, module.virtual_network]
+  depends_on = [module.resource_group]
   source     = "../../modules/networking/NSG"
   NSGs       = var.NSGs
 }
