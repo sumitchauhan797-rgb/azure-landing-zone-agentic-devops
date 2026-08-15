@@ -8,7 +8,7 @@ module "virtual_network" {
 }
 module "subnet" {
   depends_on = [module.resource_group, module.virtual_network]
-  source     = "../../modules/networking/subnet"
+  source     = "../../modules/networking/Subnet"
   subnets    = var.subnets
 }
 module "network_security_group" {
