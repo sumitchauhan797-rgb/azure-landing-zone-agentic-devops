@@ -3,8 +3,9 @@ module "resource_group" {
   resource_groups = var.resource_groups
 }
 module "virtual_network" {
-  source = "../../modules/networking/VNet"
-  vnets  = var.vnets
+  depends_on = [module.resource_group]
+  source     = "../../modules/networking/VNet"
+  vnets      = var.vnets
 }
 module "subnet" {
   depends_on = [module.resource_group, module.virtual_network]
